@@ -44,6 +44,8 @@ class WAFSystem
     public $ASNBlock;
     public $ASNCaptcha;
     public $FPSChecker;
+    public $BrowserChecker;
+    public $BehaviorChecker;
 
 
     private function __construct()
@@ -100,6 +102,8 @@ class WAFSystem
         $this->HTTPChecker = new HTTPChecker($this->Config, $this->Logger);
         $this->MobileChecker = new MobileChecker($this->Config, $this->Logger);
         $this->FPSChecker = new FPSChecker($this->Config, $this->Logger);
+        $this->BrowserChecker = new BrowserChecker($this->Config, $this->Logger);
+        $this->BehaviorChecker = new BehaviorChecker($this->Config, $this->Logger);
         $this->IFrameChecker = new IFrameChecker($this->Config, $this->Logger);
         $this->ASNWhite = new ASNChecker($this->Config, $this->Logger, ['listName' => 'whitelist_asn', 'action' => 'ALLOW']);
         $this->ASNBlock = new ASNChecker($this->Config, $this->Logger, ['listName' => 'blacklist_asn', 'action' => 'BLOCK']);
@@ -440,6 +444,52 @@ class WAFSystem
                     $this->Logger->log("IFrame blocked");
                     $Api->endJSON('block');
                 }
+            }
+        }
+
+        # Browser / Behavior risk checks. Выполняются после получения клиентских данных
+        # и до обычных CAPTCHA-фильтров. По умолчанию оба модуля выключены.
+        $browserResult = array('score' => 0, 'signals' => array(), 'action' => 'SKIP');
+        $behaviorResult = array('score' => 0, 'signals' => array(), 'action' => 'SKIP');
+
+        if ($this->BrowserChecker->enabled) {
+            $browserResult = $this->BrowserChecker->Checking($data, $this->Profile);
+        }
+        if ($this->BehaviorChecker->enabled) {
+            $behaviorResult = $this->BehaviorChecker->Checking($data, $this->Profile);
+        }
+
+        $riskScore = (int)$browserResult['score'] + (int)$behaviorResult['score'];
+        if ($this->BrowserChecker->enabled || $this->BehaviorChecker->enabled) {
+            $riskAction = 'SKIP';
+            $blockThreshold = min(
+                $this->BrowserChecker->enabled ? (int)$this->BrowserChecker->riskBlock : PHP_INT_MAX,
+                $this->BehaviorChecker->enabled ? (int)$this->BehaviorChecker->riskBlock : PHP_INT_MAX
+            );
+            $captchaThreshold = min(
+                $this->BrowserChecker->enabled ? (int)$this->BrowserChecker->riskCaptcha : PHP_INT_MAX,
+                $this->BehaviorChecker->enabled ? (int)$this->BehaviorChecker->riskCaptcha : PHP_INT_MAX
+            );
+
+            if ($riskScore >= $blockThreshold) {
+                $riskAction = 'BLOCK';
+            } elseif ($riskScore >= $captchaThreshold) {
+                $riskAction = 'CAPTCHA';
+            }
+
+            $this->Logger->log('Browser/Behavior total score: ' . $riskScore . ' action=' . $riskAction);
+
+            if ($riskAction === 'BLOCK') {
+                $this->Logger->log('Browser/Behavior blocked');
+                $Api->endJSON('block');
+            }
+            if ($riskAction === 'CAPTCHA') {
+                $this->Logger->log('Browser/Behavior captcha');
+                $Api->endJSON('captcha');
+            }
+            if ($riskAction === 'ALLOW') {
+                $this->Marker->set();
+                $Api->endJSON('allow');
             }
         }
 
