@@ -38,8 +38,8 @@ class BrowserChecker
         };
 
         $nav = isset($data['navigator']) && is_array($data['navigator']) ? $data['navigator'] : array();
-        $ch = isset($data['clientHints']) && is_array($data['clientHints']) ? $data['clientHints'] : array();
-        $secFetch = isset($data['secFetch']) && is_array($data['secFetch']) ? $data['secFetch'] : array();
+        $telemetry = isset($data['browserTelemetry']) && is_array($data['browserTelemetry']) ? $data['browserTelemetry'] : array();
+        $ch = isset($telemetry['clientHints']) && is_array($telemetry['clientHints']) ? $telemetry['clientHints'] : array();
 
         if (isset($nav['webdriver']) && $nav['webdriver'] === true) {
             $add('webdriver', 35);
@@ -49,26 +49,34 @@ class BrowserChecker
             $add('missing_features', 15);
         }
 
-        if (isset($data['canvas']) && $data['canvas'] === false) {
+        if (isset($telemetry['canvas']) && $telemetry['canvas'] === false) {
             $add('canvas', 10);
         }
 
-        if (isset($data['webgl']) && $data['webgl'] === false) {
+        if (isset($telemetry['webgl']) && $telemetry['webgl'] === false) {
             $add('webgl', 10);
+        }
+
+        if (isset($telemetry['missingFeatures']) && is_array($telemetry['missingFeatures']) && count($telemetry['missingFeatures']) > 0) {
+            $add('missing_features', 15);
         }
 
         if (!empty($ch['mismatch'])) {
             $add('client_hints_mismatch', 20);
         }
 
-        // Sec-Fetch отсутствующие не блокируют сами по себе.
-        $expectedFetch = isset($secFetch['expected']) ? (int)$secFetch['expected'] : 0;
-        $presentFetch = isset($secFetch['present']) ? (int)$secFetch['present'] : 0;
-        if ($expectedFetch >= 2 && $presentFetch === 0) {
+        // Клиентские Sec-Fetch заголовки доступны серверу, а не JS.
+        $fetchPresent = 0;
+        foreach (array('HTTP_SEC_FETCH_SITE','HTTP_SEC_FETCH_MODE','HTTP_SEC_FETCH_DEST','HTTP_SEC_FETCH_USER') as $header) {
+            if (!empty($_SERVER[$header])) $fetchPresent++;
+        }
+        if ($fetchPresent === 0 && $this->looksLikeModernBrowser($profile->UserAgent)) {
             $add('sec_fetch_missing', 10);
         }
 
-        if (!empty($data['protocolMismatch'])) {
+        $clientProtocol = isset($_SERVER['HTTP_X_CLIENT_PROTOCOL']) ? strtolower(trim($_SERVER['HTTP_X_CLIENT_PROTOCOL'])) : '';
+        $httpVersion = strtolower(trim((string)$profile->HttpVersion));
+        if ($clientProtocol !== '' && $httpVersion !== '' && $this->protocolMismatch($clientProtocol, $httpVersion)) {
             $add('protocol_mismatch', 15);
         }
 
@@ -89,5 +97,18 @@ class BrowserChecker
             (empty($signals) ? '' : ' signals=' . implode(',', $signals)));
 
         return array('score' => $score, 'signals' => $signals, 'action' => $action);
+    }
+
+    private function looksLikeModernBrowser($ua)
+    {
+        return (bool)preg_match('/Chrome\\/(9[0-9]|1[0-9]{2})|Firefox\\/(9[0-9]|1[0-9]{2})|Edg\\\\/(9[0-9]|1[0-9]{2})|Safari\\/6[0-9]+/i', (string)$ua);
+    }
+
+    private function protocolMismatch($clientProtocol, $httpVersion)
+    {
+        if (strpos($clientProtocol, 'http/1') !== false && strpos($httpVersion, '1.') !== false) return false;
+        if ((strpos($clientProtocol, 'http/2') !== false || strpos($clientProtocol, 'h2') !== false) && strpos($httpVersion, '2') !== false) return false;
+        if ((strpos($clientProtocol, 'http/3') !== false || strpos($clientProtocol, 'h3') !== false) && strpos($httpVersion, '3') !== false) return false;
+        return true;
     }
 }
