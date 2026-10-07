@@ -51,7 +51,7 @@ class Marker
         if ($time == null)
             $time = time() + $this->expireDays * 86400;
 
-        $payload = $this->profile->RayID . '.' . (int)$time . '.' . bin2hex(random_bytes(8));
+        $payload = $this->profile->RayID . '.' . (int)$time . '.' . substr($this->profile->genKey(), 0, 16);
         $signature = hash_hmac('sha256', $payload, $this->markerSecret);
         $cookie_value = $payload . '.' . $signature;
 
