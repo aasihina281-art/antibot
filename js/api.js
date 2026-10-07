@@ -252,18 +252,30 @@ function block() {
 
 
 /* Browser / Behavior telemetry */
-var BEHAVIOR_TELEMETRY = { events: 0, pointer: 0, touch: 0, clicks: 0, scroll: 0, startedAt: Date.now(), firstActionMs: 0, honeypot: false, hiddenLink: false, hiddenForm: false };
+var BEHAVIOR_TELEMETRY = { events: 0, pointer: 0, touch: 0, clicks: 0, keyboard: 0, scroll: 0, startedAt: Date.now(), firstActionMs: 0, honeypot: false, hiddenLink: false, hiddenForm: false, moveIntervals: [] };
 var BROWSER_TELEMETRY = { canvas: null, webgl: null, missingFeatures: [], clientHints: {} };
 function initAntiBotTelemetry() {
+	var lastPointerAt = 0;
 	var action = function(type) {
 		BEHAVIOR_TELEMETRY.events++;
 		if (!BEHAVIOR_TELEMETRY.firstActionMs) BEHAVIOR_TELEMETRY.firstActionMs = Date.now() - BEHAVIOR_TELEMETRY.startedAt;
 		if (type === 'pointer') BEHAVIOR_TELEMETRY.pointer++;
 		if (type === 'touch') BEHAVIOR_TELEMETRY.touch++;
 		if (type === 'click') BEHAVIOR_TELEMETRY.clicks++;
+		if (type === 'keyboard') BEHAVIOR_TELEMETRY.keyboard++;
 		if (type === 'scroll') BEHAVIOR_TELEMETRY.scroll++;
 	};
-	['pointermove','pointerdown','pointerup'].forEach(function(e){ window.addEventListener(e,function(){action('pointer');},{passive:true}); });
+	['pointermove','pointerdown','pointerup'].forEach(function(e){ window.addEventListener(e,function(){
+			action('pointer');
+			if (e === 'pointermove') {
+				var now = Date.now();
+				if (lastPointerAt > 0) {
+					var delta = now - lastPointerAt;
+					if (delta >= 1 && delta <= 5000 && BEHAVIOR_TELEMETRY.moveIntervals.length < 100) BEHAVIOR_TELEMETRY.moveIntervals.push(delta);
+				}
+				lastPointerAt = now;
+			}
+		},{passive:true}); });
 	['touchstart','touchend','touchmove'].forEach(function(e){ window.addEventListener(e,function(){action('touch');},{passive:true}); });
 	window.addEventListener('click',function(){action('click');},{passive:true});
 	window.addEventListener('scroll',function(){action('scroll');},{passive:true});
