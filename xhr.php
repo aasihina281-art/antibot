@@ -68,7 +68,7 @@ try {
         }
 
         // Запрос на установку метки
-        else if ($data['func'] == $antiBot->Marker->getNameMarker() && $Api->isHiddenValue()) {
+        else if ($data['func'] == $antiBot->Marker->getNameMarker() && $Api->isHiddenValue($data)) {
             $antiBot->Logger->log("Successfully passed the captcha");
             $antiBot->Marker->set();
             $Api->endJSON('allow');
