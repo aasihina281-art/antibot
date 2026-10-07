@@ -13,12 +13,21 @@ class Api
     private $data; // хранит массив данных из php://input
     private $maxData = 10000; // ограничение на размер входящего объекта
     private $maxKeys = 64;
+    private $rateWindow = 60;
+    private $rateLimit = 30;
 
     private function __construct(WAFSystem $wafsystem)
     {
         $this->WAFSystem = $wafsystem;
         $this->CSRF = CSRF::getInstance($this->WAFSystem);
         $client_ip = $this->WAFSystem->Profile->IP;
+
+        if (!$this->checkRateLimit($client_ip)) {
+            $message = "Error: xhr rate limit exceeded";
+            $this->WAFSystem->Logger->log($message);
+            $this->WAFSystem->GrayList->add($client_ip, $message);
+            $this->endJSON('fail');
+        }
 
         // Блокировка плохих запросов
         if (!$this->isPost()) {
@@ -195,6 +204,46 @@ class Api
     public function getData()
     {
         return $this->data;
+    }
+
+    private function checkRateLimit($clientIp)
+    {
+        $dir = rtrim($this->WAFSystem->Config->CachePath, '/\\') . '/api_rate/';
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return true;
+        }
+
+        $file = $dir . sha1($clientIp) . '.json';
+        $fp = @fopen($file, 'c+');
+        if (!$fp) {
+            return true;
+        }
+
+        $allowed = true;
+        if (@flock($fp, LOCK_EX)) {
+            $raw = stream_get_contents($fp);
+            $state = json_decode($raw, true);
+            $now = time();
+
+            if (!is_array($state) || !isset($state['started'], $state['count'])
+                || ($now - (int)$state['started']) >= $this->rateWindow) {
+                $state = ['started' => $now, 'count' => 0];
+            }
+
+            $state['count']++;
+            if ($state['count'] > $this->rateLimit) {
+                $allowed = false;
+            }
+
+            ftruncate($fp, 0);
+            rewind($fp);
+            fwrite($fp, json_encode($state));
+            fflush($fp);
+            flock($fp, LOCK_UN);
+        }
+
+        fclose($fp);
+        return $allowed;
     }
 
     /**
