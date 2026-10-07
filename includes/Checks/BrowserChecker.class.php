@@ -88,11 +88,8 @@ class BrowserChecker
             $add('sec_fetch_missing', 10);
         }
 
-        $clientProtocol = isset($_SERVER['HTTP_X_CLIENT_PROTOCOL']) ? strtolower(trim($_SERVER['HTTP_X_CLIENT_PROTOCOL'])) : '';
-        $httpVersion = strtolower(trim((string)$profile->HttpVersion));
-        if ($clientProtocol !== '' && $httpVersion !== '' && $this->protocolMismatch($clientProtocol, $httpVersion)) {
-            $add('protocol_mismatch', 15);
-        }
+        // X-Client-Protocol — заголовок прокси; его семантика не совпадает с HTTP-версией
+        // запроса, поэтому не используем его как risk-сигнал.
 
         // Дополнительная защита от поддельного типа данных.
         if (isset($data['isMobile']) && !is_bool($data['isMobile']) && $data['isMobile'] !== null) {
@@ -118,11 +115,4 @@ class BrowserChecker
         return (bool)preg_match('/Chrome\\/(9[0-9]|1[0-9]{2})|Firefox\\/(9[0-9]|1[0-9]{2})|Edg\\/(9[0-9]|1[0-9]{2})|Safari\\/6[0-9]+/i', (string)$ua);
     }
 
-    private function protocolMismatch($clientProtocol, $httpVersion)
-    {
-        if (strpos($clientProtocol, 'http/1') !== false && strpos($httpVersion, '1.') !== false) return false;
-        if ((strpos($clientProtocol, 'http/2') !== false || strpos($clientProtocol, 'h2') !== false) && strpos($httpVersion, '2') !== false) return false;
-        if ((strpos($clientProtocol, 'http/3') !== false || strpos($clientProtocol, 'h3') !== false) && strpos($httpVersion, '3') !== false) return false;
-        return true;
-    }
 }
