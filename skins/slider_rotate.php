@@ -968,6 +968,12 @@ $langMap = [
     </div>
     <script type="text/javascript" nonce="<?php echo $nonce ?>">
         let CSRF = "<?php echo $_REQUEST["csrf"] ?>";
+        const CAPTCHA_CHALLENGE_NONCE = "<?php echo htmlspecialchars($antiBot->CaptchaChallenge->getToken(), ENT_QUOTES, 'UTF-8'); ?>";
+        const CAPTCHA_STARTED_AT = (window.performance && performance.now) ? performance.now() : Date.now();
+        let CAPTCHA_EVENTS = 0;
+        ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'click'].forEach(function(type) {
+            document.addEventListener(type, function() { CAPTCHA_EVENTS++; }, {passive: true});
+        });
         var HTTP_ANTIBOT_PATH = '<?php echo $antiBot->Config->ANTIBOT_PATH; ?>';
 
         // Код для слайдера
@@ -1137,6 +1143,9 @@ $langMap = [
                 func: func == undefined ? 'csrf_token' : func,
                 csrf_token: CSRF,
                 mainFrame: window.top === window.self,
+                challenge_nonce: CAPTCHA_CHALLENGE_NONCE,
+                challenge_elapsed: Math.max(0, Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - CAPTCHA_STARTED_AT)),
+                events: CAPTCHA_EVENTS,
             };
 
             let data = null;
