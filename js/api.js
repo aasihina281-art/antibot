@@ -278,7 +278,7 @@ function collectBrowserTelemetry() {
 }
 initAntiBotTelemetry();
 collectBrowserTelemetry();
-\nfunction checkBot(func) {
+function checkBot(func) {
 	var xhr = new XMLHttpRequest();
 	var visitortime = new Date();
 
@@ -312,6 +312,10 @@ collectBrowserTelemetry();
 			isBas: isBas(),
 			isFrame: window.top === window.self,
 			frameRate: FRAME_RATE,
+			browserTelemetry: BROWSER_TELEMETRY,
+			behavior: Object.assign({}, BEHAVIOR_TELEMETRY, {
+				mobile: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+			}),
 
 		};
 		Object.assign(obj, obj2);
