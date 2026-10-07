@@ -9,6 +9,7 @@ class CaptchaChallenge
     private $minSeconds;
     private $maxAttempts;
     private $requireFirstVisit;
+    private $minEvents;
 
     public function __construct(Config $config)
     {
@@ -17,6 +18,7 @@ class CaptchaChallenge
         $this->minSeconds = (float)$config->init('captcha_security', 'challenge_min_seconds', 0.8, 'минимальное время до принятия решения CAPTCHA');
         $this->maxAttempts = (int)$config->init('captcha_security', 'challenge_max_attempts', 5, 'максимум попыток завершения CAPTCHA');
         $this->requireFirstVisit = (bool)$config->init('captcha_security', 'require_first_visit', true, 'требовать CAPTCHA при первом входе без валидной метки');
+        $this->minEvents = (int)$config->init('captcha_security', 'challenge_min_events', 2, 'минимум событий взаимодействия с CAPTCHA');
     }
 
     private function now()
@@ -101,7 +103,7 @@ class CaptchaChallenge
             return ['ok' => false, 'reason' => 'captcha_interaction_missing'];
         }
         $events = filter_var($clientData['events'], FILTER_VALIDATE_INT);
-        if ($events === false || $events < 1 || $events > 100000) {
+        if ($events === false || $events < max(1, $this->minEvents) || $events > 100000) {
             return ['ok' => false, 'reason' => 'captcha_invalid_interaction'];
         }
 
