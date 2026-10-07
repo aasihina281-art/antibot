@@ -480,6 +480,7 @@ $wafsystem = \WAFSystem\WAFSystem::getInstance();
         var UTM_REFERRER = '<?php echo $this->utm_referrer; ?>';
         var SAVE_REFERER = '<?php echo $this->save_referer; ?>';
         var CSRF = '<?php echo WAFSystem\CSRF::getInstance($wafsystem)->createCSRF() ?>';
+        var CAPTCHA_DISPLAYED = false;
 
         const head2 = document.getElementById("pSht7");
         const form = document.getElementById("uHkM6");
@@ -488,6 +489,8 @@ $wafsystem = \WAFSystem\WAFSystem::getInstance();
         const blockHTTPSecurity = document.getElementById("LfAMd3");
 
         function displayCaptcha() {
+            if (CAPTCHA_DISPLAYED) return;
+            CAPTCHA_DISPLAYED = true;
             var iframe = document.createElement("iframe");
             iframe.onload = () => {
                 // Показываем содержимое iframe
