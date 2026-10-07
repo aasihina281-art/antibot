@@ -24,6 +24,7 @@ class Marker
         $config->init('cookie', 'cookie_name', substr($this->profile->genKey(), 0, rand(5, 11)), 'Изменение значения, позволяет сбросить метку всем пользователям');
         $config->init('cookie', 'expire_days', 30, 'дней, действия метки');
         $this->storageType = $config->init('cookie', 'storage_type', $this->storageType, 'тип хранилища для метки (cookie, awsession)');
+        $this->markerSecret = $config->init('cookie', 'marker_secret', $this->profile->genKey(), 'секрет для криптографической подписи метки');
 
         $this->expireDays = (int)$config->get('cookie', 'expire_days', 30);
         $this->genNameMarker();
@@ -50,7 +51,9 @@ class Marker
         if ($time == null)
             $time = time() + $this->expireDays * 86400;
 
-        $cookie_value = $this->profile->RayID;
+        $payload = $this->profile->RayID . '.' . (int)$time . '.' . bin2hex(random_bytes(8));
+        $signature = hash_hmac('sha256', $payload, $this->markerSecret);
+        $cookie_value = $payload . '.' . $signature;
 
         if ($this->storageType == "awsession") {
             $Session = \WAFSystem\WAFSystem::getInstance()->Session;
@@ -82,16 +85,50 @@ class Marker
     {
         if ($this->storageType == "awsession") {
             $Session = \WAFSystem\WAFSystem::getInstance()->Session;
-            if(!is_null($Session->get(self::COOKIE_KEY))) {
+            $value = $Session->get(self::COOKIE_KEY);
+            if (!is_null($value) && $this->verifyValue($value)) {
                 return true;
             }
                 
         } else {
-            if (isset($_COOKIE[self::COOKIE_KEY])) {
+            if (isset($_COOKIE[self::COOKIE_KEY]) && $this->verifyValue($_COOKIE[self::COOKIE_KEY])) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function verifyValue($value)
+    {
+        if (!is_string($value) || strlen($value) > 512) {
+            return false;
+        }
+
+        $parts = explode('.', $value);
+        if (count($parts) !== 4) {
+            return false;
+        }
+
+        list($rayId, $expires, $nonce, $signature) = $parts;
+        if (!preg_match('/^[a-f0-9]{16}$/', $rayId)
+            || !ctype_digit($expires)
+            || !preg_match('/^[a-f0-9]{16}$/', $nonce)
+            || !preg_match('/^[a-f0-9]{64}$/', $signature)) {
+            return false;
+        }
+
+        if ((int)$expires < time()) {
+            return false;
+        }
+
+        if (!hash_equals($this->profile->RayID, $rayId)) {
+            return false;
+        }
+
+        $payload = $rayId . '.' . (int)$expires . '.' . $nonce;
+        $expected = hash_hmac('sha256', $payload, $this->markerSecret);
+
+        return hash_equals($expected, $signature);
     }
 }
