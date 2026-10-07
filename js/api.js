@@ -1,6 +1,8 @@
 let FINGERPRINT = '';
 let FRAME_RATE = 0;
 let IS_LOAD = {}; // готовность всех модулей
+let CHECK_BOT_IN_FLIGHT = false;
+let CHECK_BOT_DONE = false;
 
 
 function refresh() {
@@ -279,6 +281,13 @@ function collectBrowserTelemetry() {
 initAntiBotTelemetry();
 collectBrowserTelemetry();
 function checkBot(func) {
+	if (func == 'checks') {
+		// Only one checks request is allowed per verification page.
+		// CSRF tokens are single-use; duplicate requests can invalidate the token.
+		if (CHECK_BOT_IN_FLIGHT || CHECK_BOT_DONE) return;
+		CHECK_BOT_IN_FLIGHT = true;
+	}
+
 	var xhr = new XMLHttpRequest();
 	var visitortime = new Date();
 
@@ -335,6 +344,10 @@ function checkBot(func) {
 	xhr.onload = async function () {
 		if (xhr.status >= 200 && xhr.status < 300) {
 			var data = JSON.parse(xhr.responseText);
+			if (func == 'checks') {
+				CHECK_BOT_IN_FLIGHT = false;
+				CHECK_BOT_DONE = true;
+			}
 			CSRF = data.csrf_token;
 
 			if (data.status == 'captcha') {
@@ -359,6 +372,7 @@ function checkBot(func) {
 	};
 
 	xhr.onerror = function () {
+		if (func == 'checks') CHECK_BOT_IN_FLIGHT = false;
 		console.error('Network error occurred');
 	};
 
@@ -390,8 +404,8 @@ if (!сheckCookie()) {
 					}
 				}
 				if (found) {
-					checkBot('checks');
 					clearInterval(intervalId);
+					checkBot('checks');
 				}
 			}
 		} catch (error) {
