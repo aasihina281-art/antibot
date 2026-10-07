@@ -46,6 +46,7 @@ class WAFSystem
     public $FPSChecker;
     public $BrowserChecker;
     public $BehaviorChecker;
+    public $CaptchaChallenge;
 
 
     private function __construct()
@@ -82,6 +83,7 @@ class WAFSystem
         );
 
         $this->GrayList = new GrayList($this->Config, $this->Logger);
+        $this->CaptchaChallenge = new CaptchaChallenge($this->Config);
         $this->Marker = new Marker($this->Config, $this->Profile, $this->Logger);
         $this->Template = new Template($this->Config, $this->Profile, $this->Logger);
 
