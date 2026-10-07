@@ -8,6 +8,7 @@ class CaptchaChallenge
     private $ttl;
     private $minSeconds;
     private $maxAttempts;
+    private $requireFirstVisit;
 
     public function __construct(Config $config)
     {
@@ -15,6 +16,7 @@ class CaptchaChallenge
         $this->ttl = (int)$config->init('captcha_security', 'challenge_ttl', 120, 'секунд жизни серверного challenge');
         $this->minSeconds = (float)$config->init('captcha_security', 'challenge_min_seconds', 0.8, 'минимальное время до принятия решения CAPTCHA');
         $this->maxAttempts = (int)$config->init('captcha_security', 'challenge_max_attempts', 5, 'максимум попыток завершения CAPTCHA');
+        $this->requireFirstVisit = (bool)$config->init('captcha_security', 'require_first_visit', true, 'требовать CAPTCHA при первом входе без валидной метки');
     }
 
     private function now()
@@ -49,6 +51,11 @@ class CaptchaChallenge
     {
         $state = $this->get();
         return $state && isset($state['nonce']) ? $state['nonce'] : '';
+    }
+
+    public function isFirstVisitRequired()
+    {
+        return $this->requireFirstVisit;
     }
 
     public function isActive()
