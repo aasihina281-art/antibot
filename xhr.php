@@ -19,41 +19,26 @@ try {
     $skin = preg_replace('/[^a-zA-Z0-9_-]/', '', $skin); // Безопасность
 
     if (!empty($skin)) {
-        // Заменяем CSFR
-        $csfr = \WAFSystem\CSRF::getInstance($antiBot);
-        try {
-            if (!isset($_REQUEST["csrf"]))
-                throw new \Exception('Error: _REQUEST[csrf] is not set');
-
-            $isCSRF = $csfr->validCSRF($_REQUEST["csrf"]);
-        } catch (Exception $e) {
-            $message = $e->getMessage();
-            $antiBot->Logger->log($message, ["_REQUEST" => $_REQUEST]);
-            $antiBot->GrayList->add($antiBot->Profile->IP, $message);
-            $antiBot->Template->showBlockPage();
-        }
-
-        $_REQUEST["csrf"] = $csfr->createCSRF(); // выдем новый, т.к. страный удален
-
+        // CAPTCHA skin — безопасный GET-ресурс: имя файла строго очищено и ограничено
+        // каталогом skins/. Не используем одноразовый CSRF родительской страницы,
+        // иначе повторная загрузка iframe даёт ложную CSRF-ошибку и graylist.
         $skinsDir = 'skins/';
         $skinFile = $skinsDir . $skin . '.php';
 
-        // Проверка существования файла
         if (file_exists($skinFile) && is_readable($skinFile)) {
             require $skinFile;
             exit;
-        } else {
-            // Если файл не найден, подключаем файл по умолчанию
-            $defaultFile = $skinsDir . 'checkbox.php';
-            if (file_exists($defaultFile)) {
-                require $defaultFile;
-            } else {
-                // Если checkbox.php тоже нет, показываем ошибку
-                header('HTTP/1.1 404 Not Found');
-                echo 'Скин не найден';
-            }
+        }
+
+        $defaultFile = $skinsDir . 'checkbox.php';
+        if (file_exists($defaultFile) && is_readable($defaultFile)) {
+            require $defaultFile;
             exit;
         }
+
+        header('HTTP/1.1 404 Not Found');
+        echo 'Скин не найден';
+        exit;
     }
 
     $Api = \WAFSystem\Api::getInstance($antiBot);
