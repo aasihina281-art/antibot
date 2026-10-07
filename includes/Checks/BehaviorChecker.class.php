@@ -41,6 +41,8 @@ class BehaviorChecker
         $events = isset($behavior['events']) ? max(0, (int)$behavior['events']) : 0;
         $pointer = isset($behavior['pointer']) ? max(0, (int)$behavior['pointer']) : 0;
         $touch = isset($behavior['touch']) ? max(0, (int)$behavior['touch']) : 0;
+        $keyboard = isset($behavior['keyboard']) ? max(0, (int)$behavior['keyboard']) : 0;
+        $moveIntervals = isset($behavior['moveIntervals']) && is_array($behavior['moveIntervals']) ? $behavior['moveIntervals'] : array();
         $clicks = isset($behavior['clicks']) ? max(0, (int)$behavior['clicks']) : 0;
         $scroll = isset($behavior['scroll']) ? max(0, (int)$behavior['scroll']) : 0;
         $elapsed = isset($behavior['elapsedMs']) ? max(0, (int)$behavior['elapsedMs']) : 0;
@@ -59,13 +61,35 @@ class BehaviorChecker
         }
 
         // Очень быстрый автоматизированный сценарий.
-        if ($firstAction > 0 && $firstAction < 350 && $events <= 4) {
+        if (!$mobile && $firstAction > 0 && $firstAction < 350 && $events <= 4) {
             $add('too_fast', 20);
         }
 
         // Клик без предшествующего pointer/touch — сильнее, чем просто отсутствие pointer.
-        if ($clicks > 0 && $pointer === 0 && $touch === 0) {
+        if ($clicks > 0 && $pointer === 0 && $touch === 0 && $keyboard === 0 && $mobile === false) {
             $add('click_without_pointer', 20);
+        }
+
+        // Роботы часто генерируют события с почти одинаковым интервалом.
+        // Это только слабый сигнал и никогда не является самостоятельным блоком.
+        if (!$mobile && count($moveIntervals) >= 8) {
+            $validIntervals = array();
+            foreach ($moveIntervals as $interval) {
+                if (is_numeric($interval) && $interval >= 1 && $interval <= 5000) {
+                    $validIntervals[] = (int)$interval;
+                }
+            }
+            if (count($validIntervals) >= 8) {
+                $mean = array_sum($validIntervals) / count($validIntervals);
+                $variance = 0.0;
+                foreach ($validIntervals as $interval) {
+                    $variance += ($interval - $mean) * ($interval - $mean);
+                }
+                $variance /= count($validIntervals);
+                if ($mean >= 8 && sqrt($variance) < 1.5) {
+                    $add('regular_event_timing', 10);
+                }
+            }
         }
 
         if (!empty($behavior['honeypot'])) {
@@ -79,7 +103,7 @@ class BehaviorChecker
         }
 
         // Данные ограничиваем разумными значениями, чтобы не принять мусор за реальное поведение.
-        if ($events > 5000 || $pointer > 5000 || $clicks > 500 || $scroll > 500) {
+        if ($events > 5000 || $pointer > 5000 || $clicks > 500 || $scroll > 500 || count($moveIntervals) > 100) {
             $add('telemetry_overflow', 15);
         }
 
