@@ -233,6 +233,39 @@ PS Для платной версии Cloudflare могут быть други�
 
 В список lists/blacklist_fingerprint можно добавить Fingerprint. Если система обнаружит его у посетителя, то добавит ip в черный список.
 
+## BrowserChecker и BehaviorChecker
+
+Для дополнительной проверки посетителей после загрузки страницы проверки доступны два независимых модуля:
+
+- **BrowserChecker** — статические признаки окружения браузера: navigator.webdriver, JS API, Canvas, WebGL, Client Hints, Sec-Fetch-* и согласованность X-Client-Protocol.
+- **BehaviorChecker** — динамическое поведение: pointer/mouse, touch, clicks, scroll, keyboard, timing и honeypot-сигналы.
+
+Оба модуля выключены по умолчанию и не требуют Nginx-модулей, Lua, базы данных или внешнего proxy.
+
+```ini
+[browser_checker]
+enabled = Off
+action = CAPTCHA
+risk_captcha = 35
+risk_block = 80
+
+[behavior_checker]
+enabled = Off
+action = CAPTCHA
+risk_captcha = 35
+risk_block = 80
+```
+
+Данные передаются через уже существующий POST xhr.php с func=checks, поэтому отдельный endpoint и отдельный CSRF-механизм не нужны.
+
+Начальные пороги: 35 — CAPTCHA, 80 — BLOCK. Параметр action ограничивает максимальное действие модуля. Например, action = CAPTCHA не позволит risk score привести к BLOCK.
+
+Важно: отсутствие pointer не считается подозрительным на мобильных/touch устройствах. Отсутствие scroll само по себе также не повышает риск. Honeypot, скрытая ссылка и скрытая форма дают высокий риск только при фактическом взаимодействии с ними.
+
+Перед включением BLOCK рекомендуется сначала использовать action = CAPTCHA и посмотреть реальные записи BrowserChecker/BehaviorChecker в logs/antibot.log.
+
+Подробное описание: docs/BROWSER_BEHAVIOR.md.
+
 ## Протокол HTTP
 
 Возможность заблокировать ботов, использующих устаревшие версии HTTP-протоколов. 
