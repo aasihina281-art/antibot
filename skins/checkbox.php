@@ -378,7 +378,10 @@ $langMap = [
         let CSRF = "<?php echo $_REQUEST["csrf"] ?>";
         const CAPTCHA_CHALLENGE_NONCE = "<?php echo htmlspecialchars($antiBot->CaptchaChallenge->getToken(), ENT_QUOTES, 'UTF-8'); ?>";
         const CAPTCHA_STARTED_AT = (window.performance && performance.now) ? performance.now() : Date.now();
+        const CAPTCHA_POW_DIFFICULTY = <?php echo (int)$antiBot->CaptchaChallenge->getPowDifficulty(); ?>;
         let CAPTCHA_EVENTS = 0;
+        let CAPTCHA_POW_COUNTER = null;
+        let CAPTCHA_POW_BUSY = false;
         ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'click'].forEach(function(type) {
             document.addEventListener(type, function() { CAPTCHA_EVENTS++; }, {passive: true});
         });
@@ -400,6 +403,56 @@ $langMap = [
             blockFail.style.display = "";
         }
 
+        async function solveProofOfWork() {
+            if (!window.crypto || !window.crypto.subtle || !window.TextEncoder) {
+                throw new Error('Proof-of-work is not supported');
+            }
+
+            const encoder = new TextEncoder();
+            const targetBits = CAPTCHA_POW_DIFFICULTY;
+            const batchSize = 1024;
+            let counter = 0;
+
+            function validHash(buffer) {
+                const bytes = new Uint8Array(buffer);
+                const fullBytes = Math.floor(targetBits / 8);
+                const remainingBits = targetBits % 8;
+
+                for (let i = 0; i < fullBytes; i++) {
+                    if (bytes[i] !== 0) return false;
+                }
+
+                if (remainingBits > 0) {
+                    return (bytes[fullBytes] >> (8 - remainingBits)) === 0;
+                }
+
+                return true;
+            }
+
+            while (counter <= 50000000) {
+                const jobs = [];
+                for (let i = 0; i < batchSize && counter + i <= 50000000; i++) {
+                    const candidate = counter + i;
+                    jobs.push(window.crypto.subtle.digest(
+                        'SHA-256',
+                        encoder.encode(CAPTCHA_CHALLENGE_NONCE + ':' + candidate)
+                    ).then(function(hash) {
+                        return validHash(hash) ? candidate : null;
+                    }));
+                }
+
+                const results = await Promise.all(jobs);
+                for (let i = 0; i < results.length; i++) {
+                    if (results[i] !== null) return results[i];
+                }
+
+                counter += batchSize;
+                await new Promise(function(resolve) { setTimeout(resolve, 0); });
+            }
+
+            throw new Error('Proof-of-work limit exceeded');
+        }
+
         function <?php echo $funcName ?>(func) {
             var xhr = new XMLHttpRequest();
             var visitortime = new Date();
@@ -411,6 +464,7 @@ $langMap = [
                 challenge_nonce: CAPTCHA_CHALLENGE_NONCE,
                 challenge_elapsed: Math.max(0, Math.round(((window.performance && performance.now) ? performance.now() : Date.now()) - CAPTCHA_STARTED_AT)),
                 events: CAPTCHA_EVENTS,
+                pow_counter: CAPTCHA_POW_COUNTER,
             };
 
             let data = null;
@@ -463,7 +517,18 @@ $langMap = [
             if (this.checked) {
                 blockInput.style.display = "none";
                 blockVerifying.style.display = "";
-                <?php echo $funcName ?>('<?php echo $antiBot->Marker->getNameMarker() ?>');
+
+                if (CAPTCHA_POW_BUSY) return;
+                CAPTCHA_POW_BUSY = true;
+
+                solveProofOfWork().then(function(counter) {
+                    CAPTCHA_POW_COUNTER = counter;
+                    <?php echo $funcName ?>('<?php echo $antiBot->Marker->getNameMarker() ?>');
+                }).catch(function() {
+                    CAPTCHA_POW_BUSY = false;
+                    displayNone();
+                    fail();
+                });
             }
         });
 
