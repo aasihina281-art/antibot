@@ -10,6 +10,7 @@ class CaptchaChallenge
     private $maxAttempts;
     private $requireFirstVisit;
     private $minEvents;
+    private $powDifficulty;
 
     public function __construct(Config $config)
     {
@@ -19,6 +20,7 @@ class CaptchaChallenge
         $this->maxAttempts = (int)$config->init('captcha_security', 'challenge_max_attempts', 5, 'максимум попыток завершения CAPTCHA');
         $this->requireFirstVisit = (bool)$config->init('captcha_security', 'require_first_visit', true, 'требовать CAPTCHA при первом входе без валидной метки');
         $this->minEvents = (int)$config->init('captcha_security', 'challenge_min_events', 2, 'минимум событий взаимодействия с CAPTCHA');
+        $this->powDifficulty = min(24, max(8, (int)$config->init('captcha_security', 'pow_difficulty', 16, 'сложность клиентского proof-of-work, бит SHA-256')));
     }
 
     private function now()
@@ -35,7 +37,8 @@ class CaptchaChallenge
             'created' => $this->now(),
             'expires' => time() + max(10, $this->ttl),
             'attempts' => 0,
-            'solved' => false
+            'solved' => false,
+            'pow_difficulty' => $this->powDifficulty
         ];
 
         return $nonce;
@@ -53,6 +56,12 @@ class CaptchaChallenge
     {
         $state = $this->get();
         return $state && isset($state['nonce']) ? $state['nonce'] : '';
+    }
+
+    public function getPowDifficulty()
+    {
+        $state = $this->get();
+        return $state && isset($state['pow_difficulty']) ? (int)$state['pow_difficulty'] : $this->powDifficulty;
     }
 
     public function isFirstVisitRequired()
@@ -105,6 +114,30 @@ class CaptchaChallenge
         $events = filter_var($clientData['events'], FILTER_VALIDATE_INT);
         if ($events === false || $events < max(1, $this->minEvents) || $events > 100000) {
             return ['ok' => false, 'reason' => 'captcha_invalid_interaction'];
+        }
+
+        if (!isset($clientData['pow_counter']) || !is_scalar($clientData['pow_counter'])) {
+            return ['ok' => false, 'reason' => 'captcha_pow_missing'];
+        }
+        $powCounter = filter_var($clientData['pow_counter'], FILTER_VALIDATE_INT);
+        if ($powCounter === false || $powCounter < 0 || $powCounter > 50000000) {
+            return ['ok' => false, 'reason' => 'captcha_pow_invalid_counter'];
+        }
+
+        $difficulty = $this->getPowDifficulty();
+        $powHash = hash('sha256', (string)$state['nonce'] . ':' . (string)$powCounter);
+        $fullBytes = intdiv($difficulty, 8);
+        $remainingBits = $difficulty % 8;
+        for ($i = 0; $i < $fullBytes; $i++) {
+            if (substr($powHash, $i * 2, 2) !== '00') {
+                return ['ok' => false, 'reason' => 'captcha_pow_invalid'];
+            }
+        }
+        if ($remainingBits > 0) {
+            $byte = hexdec(substr($powHash, $fullBytes * 2, 2));
+            if (($byte >> (8 - $remainingBits)) !== 0) {
+                return ['ok' => false, 'reason' => 'captcha_pow_invalid'];
+            }
         }
 
         if (isset($clientData['challenge_elapsed'])) {
