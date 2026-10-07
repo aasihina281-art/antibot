@@ -45,10 +45,6 @@ class BrowserChecker
             $add('webdriver', 35);
         }
 
-        if (isset($data['missingFeatures']) && is_array($data['missingFeatures']) && count($data['missingFeatures']) > 0) {
-            $add('missing_features', 15);
-        }
-
         if (isset($telemetry['canvas']) && $telemetry['canvas'] === false) {
             $add('canvas', 10);
         }
@@ -61,8 +57,16 @@ class BrowserChecker
             $add('missing_features', 15);
         }
 
-        if (!empty($ch['mismatch'])) {
-            $add('client_hints_mismatch', 20);
+        $uaMobile = stripos($profile->UserAgent, 'Mobile') !== false;
+        if (isset($ch['available']) && $ch['available']) {
+            if (isset($ch['mobile']) && (bool)$ch['mobile'] !== $uaMobile) {
+                $add('client_hints_mismatch', 20);
+            }
+            if (!empty($ch['platform'])) {
+                $platform = strtolower($ch['platform']);
+                if (stripos($profile->UserAgent, 'Windows') !== false && strpos($platform, 'windows') === false) $add('client_hints_mismatch', 20);
+                if (stripos($profile->UserAgent, 'Android') !== false && strpos($platform, 'android') === false) $add('client_hints_mismatch', 20);
+            }
         }
 
         // Клиентские Sec-Fetch заголовки доступны серверу, а не JS.
