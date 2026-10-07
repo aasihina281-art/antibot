@@ -477,7 +477,22 @@ class WAFSystem
                 $riskAction = 'CAPTCHA';
             }
 
-            $this->Logger->log('Browser/Behavior total score: ' . $riskScore . ' action=' . $riskAction);
+            // action ограничивает максимальное действие модуля.
+            $moduleActions = array();
+            if ($this->BrowserChecker->enabled) $moduleActions[] = strtoupper($this->BrowserChecker->action);
+            if ($this->BehaviorChecker->enabled) $moduleActions[] = strtoupper($this->BehaviorChecker->action);
+
+            if ($riskAction === 'BLOCK' && !in_array('BLOCK', $moduleActions, true)) {
+                $riskAction = in_array('CAPTCHA', $moduleActions, true) ? 'CAPTCHA' : 'SKIP';
+            } elseif ($riskAction === 'CAPTCHA' && !in_array('CAPTCHA', $moduleActions, true) && !in_array('BLOCK', $moduleActions, true)) {
+                $riskAction = 'SKIP';
+            }
+
+            if ($riskAction === 'SKIP') {
+                $this->Logger->log('Browser/Behavior total score: ' . $riskScore . ' action=SKIP');
+            } else {
+                $this->Logger->log('Browser/Behavior total score: ' . $riskScore . ' action=' . $riskAction);
+            }
 
             if ($riskAction === 'BLOCK') {
                 $this->Logger->log('Browser/Behavior blocked');
