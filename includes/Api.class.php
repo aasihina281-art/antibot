@@ -12,6 +12,7 @@ class Api
     private $CSRF;
     private $data; // хранит массив данных из php://input
     private $maxData = 10000; // ограничение на размер входящего объекта
+    private $maxKeys = 64;
 
     private function __construct(WAFSystem $wafsystem)
     {
@@ -34,6 +35,20 @@ class Api
         }
 
         $this->data = json_decode($input, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($this->data)) {
+            $message = "Error: Invalid JSON payload";
+            $this->WAFSystem->Logger->log($message);
+            $this->WAFSystem->GrayList->add($client_ip, $message);
+            $this->endJSON('fail');
+        }
+
+        if (count($this->data) > $this->maxKeys) {
+            $message = "Error: Too many JSON fields";
+            $this->WAFSystem->Logger->log($message);
+            $this->WAFSystem->GrayList->add($client_ip, $message);
+            $this->endJSON('fail');
+        }
 
         if (empty($this->data)) {
             $message = "Error: JSON-data is empty";
@@ -101,6 +116,7 @@ class Api
         if ($status == 'captcha') {
             $this->WAFSystem->Logger->log("Show captcha");
             $this->setHiddenValue();
+            $this->WAFSystem->CaptchaChallenge->issue();
         }
 
         if ($status == 'allow') {
@@ -146,9 +162,20 @@ class Api
     /**
      * Проверяет наличие ключа разблокировки
      */
-    public function isHiddenValue()
+    public function isHiddenValue($clientData = [])
     {
-        return isset($_SESSION['rndname']);
+        if (!isset($_SESSION['rndname'])) {
+            return false;
+        }
+
+        $result = $this->WAFSystem->CaptchaChallenge->consumeSuccess($clientData);
+        if (!$result['ok']) {
+            $this->WAFSystem->Logger->log('CAPTCHA challenge rejected: ' . $result['reason']);
+            $this->WAFSystem->GrayList->add($this->WAFSystem->Profile->IP, $result['reason']);
+            return false;
+        }
+
+        return true;
     }
 
     /**
