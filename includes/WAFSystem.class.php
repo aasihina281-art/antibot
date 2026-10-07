@@ -500,7 +500,10 @@ class WAFSystem
                 $Api->endJSON('block');
             }
             if ($riskAction === 'CAPTCHA') {
-                $this->Logger->log('Browser/Behavior captcha');
+                // Подозрительный клиент получает более дорогой client-side PoW.
+                // Сервер при этом проверяет только один SHA-256.
+                $this->CaptchaChallenge->setNextDifficulty(20);
+                $this->Logger->log('Browser/Behavior captcha: elevated PoW difficulty=20');
                 $Api->endJSON('captcha');
             }
             if ($riskAction === 'ALLOW') {
