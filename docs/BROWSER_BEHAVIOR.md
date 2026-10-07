@@ -65,3 +65,12 @@ action ограничивает максимальное действие мод
 ## Ограничение
 
 BrowserChecker/BehaviorChecker не являются криптографическим доказательством того, что клиент — настоящий браузер. Все клиентские данные потенциально могут быть подделаны. Сильные решения должны основываться на совокупности независимых сигналов.
+
+
+## Server-side CAPTCHA challenge
+
+When CAPTCHA is shown, the server creates a one-time challenge in the PHP session. The challenge has a TTL, a minimum completion time, and an attempt limit. CAPTCHA skins return the challenge nonce and a bounded interaction counter; the server validates both before issuing the access marker.
+
+The access marker is HMAC-signed and includes an expiry and the current RayID. A forged or expired `aw_marker` cookie is therefore not accepted.
+
+POST requests to `xhr.php` are additionally rate-limited using files under the existing cache directory, so this works on shared hosting without external infrastructure.
