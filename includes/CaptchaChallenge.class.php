@@ -11,6 +11,7 @@ class CaptchaChallenge
     private $requireFirstVisit;
     private $minEvents;
     private $powDifficulty;
+    private $nextDifficulty = null;
 
     public function __construct(Config $config)
     {
@@ -28,17 +29,24 @@ class CaptchaChallenge
         return microtime(true);
     }
 
+    public function setNextDifficulty($difficulty)
+    {
+        $this->nextDifficulty = min(24, max(8, (int)$difficulty));
+    }
+
     public function issue()
     {
         $bytes = function_exists('random_bytes') ? random_bytes(24) : openssl_random_pseudo_bytes(24);
         $nonce = bin2hex($bytes);
+        $difficulty = $this->nextDifficulty !== null ? $this->nextDifficulty : $this->powDifficulty;
+        $this->nextDifficulty = null;
         $_SESSION['aw_captcha_challenge'] = [
             'nonce' => $nonce,
             'created' => $this->now(),
             'expires' => time() + max(10, $this->ttl),
             'attempts' => 0,
             'solved' => false,
-            'pow_difficulty' => $this->powDifficulty
+            'pow_difficulty' => $difficulty
         ];
 
         return $nonce;
