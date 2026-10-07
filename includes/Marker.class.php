@@ -65,7 +65,8 @@ class Marker
                     'expires' => $time,
                     'path' => '/',
                     'httponly' => true,
-                    'secure' => isset($_SERVER['HTTPS'])
+                    'secure' => $this->Config->HTTPS === true,
+                    'samesite' => 'Lax'
                 ]);
             } else {
                 setcookie(self::COOKIE_KEY, $cookie_value, time() + $this->expireDays * 24 * 3600, "/");
