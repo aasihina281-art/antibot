@@ -375,6 +375,15 @@ class WAFSystem
         }
         $this->Profile->REQUEST_URI = $data['location']['pathname'] . $data['location']['search'];
 
+        // Первый вход без marker всегда требует CAPTCHA. После её успешного
+        // прохождения Marker устанавливается, и следующие посещения проходят без CAPTCHA.
+        // Если challenge уже активен, значит это повторный запрос из текущей CAPTCHA;
+        // даём ему пройти дальше до isHiddenValue(), где nonce/время/попытки проверяются.
+        if ($this->CaptchaChallenge->isFirstVisitRequired()
+            && !$this->CaptchaChallenge->isActive()) {
+            $this->Logger->log("First visit without marker: show captcha");
+            $Api->endJSON('captcha');
+        }
 
         if ($this->FPSChecker->enabled)
             $this->Logger->log("FPS: " . $this->Profile->FPS);
