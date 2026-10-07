@@ -58,6 +58,16 @@ class BrowserChecker
         }
 
         $uaMobile = stripos($profile->UserAgent, 'Mobile') !== false;
+        $navLanguage = isset($nav['language']) && is_string($nav['language']) ? strtolower($nav['language']) : '';
+        $acceptLanguage = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? strtolower(trim((string)$_SERVER['HTTP_ACCEPT_LANGUAGE'])) : '';
+        if ($navLanguage !== '' && $acceptLanguage !== '') {
+            $navBase = substr($navLanguage, 0, 2);
+            $acceptBase = substr($acceptLanguage, 0, 2);
+            if ($navBase !== '' && $acceptBase !== '' && $navBase !== $acceptBase) {
+                $add('language_mismatch', 10);
+            }
+        }
+
         if (isset($ch['available']) && $ch['available']) {
             if (isset($ch['mobile']) && (bool)$ch['mobile'] !== $uaMobile) {
                 $add('client_hints_mismatch', 20);
