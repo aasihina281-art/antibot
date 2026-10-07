@@ -21,6 +21,8 @@ class Api
         $this->WAFSystem = $wafsystem;
         $this->CSRF = CSRF::getInstance($this->WAFSystem);
         $client_ip = $this->WAFSystem->Profile->IP;
+        $this->rateWindow = max(10, (int)$this->WAFSystem->Config->init('api_security', 'rate_window', $this->rateWindow, 'окно rate-limit xhr.php в секундах'));
+        $this->rateLimit = max(5, (int)$this->WAFSystem->Config->init('api_security', 'rate_limit', $this->rateLimit, 'максимум POST запросов xhr.php на IP за окно'));
 
         if (!$this->checkRateLimit($client_ip)) {
             $message = "Error: xhr rate limit exceeded";
