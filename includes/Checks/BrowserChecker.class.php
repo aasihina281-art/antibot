@@ -105,7 +105,7 @@ class BrowserChecker
 
     private function looksLikeModernBrowser($ua)
     {
-        return (bool)preg_match('/Chrome\\/(9[0-9]|1[0-9]{2})|Firefox\\/(9[0-9]|1[0-9]{2})|Edg\\\\/(9[0-9]|1[0-9]{2})|Safari\\/6[0-9]+/i', (string)$ua);
+        return (bool)preg_match('/Chrome\\/(9[0-9]|1[0-9]{2})|Firefox\\/(9[0-9]|1[0-9]{2})|Edg\\/(9[0-9]|1[0-9]{2})|Safari\\/6[0-9]+/i', (string)$ua);
     }
 
     private function protocolMismatch($clientProtocol, $httpVersion)
