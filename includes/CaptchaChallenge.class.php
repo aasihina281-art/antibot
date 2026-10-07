@@ -24,7 +24,8 @@ class CaptchaChallenge
 
     public function issue()
     {
-        $nonce = bin2hex(random_bytes(24));
+        $bytes = function_exists('random_bytes') ? random_bytes(24) : openssl_random_pseudo_bytes(24);
+        $nonce = bin2hex($bytes);
         $_SESSION['aw_captcha_challenge'] = [
             'nonce' => $nonce,
             'created' => $this->now(),
