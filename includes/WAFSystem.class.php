@@ -500,10 +500,18 @@ class WAFSystem
                 $Api->endJSON('block');
             }
             if ($riskAction === 'CAPTCHA') {
-                // Подозрительный клиент получает более дорогой client-side PoW.
+                // Чем выше накопленный риск, тем дороже client-side PoW.
+                // Нормальный клиент остаётся на базовой сложности.
                 // Сервер при этом проверяет только один SHA-256.
-                $this->CaptchaChallenge->setNextDifficulty(20);
-                $this->Logger->log('Browser/Behavior captcha: elevated PoW difficulty=20');
+                $powDifficulty = 20;
+                if ($riskScore >= 70) {
+                    $powDifficulty = 24;
+                } elseif ($riskScore >= 55) {
+                    $powDifficulty = 22;
+                }
+
+                $this->CaptchaChallenge->setNextDifficulty($powDifficulty);
+                $this->Logger->log('Browser/Behavior captcha: elevated PoW difficulty=' . $powDifficulty . ' risk=' . $riskScore);
                 $Api->endJSON('captcha');
             }
             if ($riskAction === 'ALLOW') {
