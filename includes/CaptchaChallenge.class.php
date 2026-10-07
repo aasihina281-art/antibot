@@ -84,16 +84,23 @@ class CaptchaChallenge
             return ['ok' => false, 'reason' => 'captcha_completed_too_fast'];
         }
 
-        if (isset($clientData['challenge_nonce']) && is_string($clientData['challenge_nonce'])) {
-            if (!hash_equals((string)$state['nonce'], $clientData['challenge_nonce'])) {
-                return ['ok' => false, 'reason' => 'captcha_challenge_mismatch'];
-            }
+        if (!isset($clientData['challenge_nonce']) || !is_string($clientData['challenge_nonce'])
+            || !hash_equals((string)$state['nonce'], $clientData['challenge_nonce'])) {
+            return ['ok' => false, 'reason' => 'captcha_challenge_mismatch'];
         }
 
-        if (isset($clientData['events'])) {
-            $events = filter_var($clientData['events'], FILTER_VALIDATE_INT);
-            if ($events === false || $events < 1 || $events > 100000) {
-                return ['ok' => false, 'reason' => 'captcha_invalid_interaction'];
+        if (!isset($clientData['events'])) {
+            return ['ok' => false, 'reason' => 'captcha_interaction_missing'];
+        }
+        $events = filter_var($clientData['events'], FILTER_VALIDATE_INT);
+        if ($events === false || $events < 1 || $events > 100000) {
+            return ['ok' => false, 'reason' => 'captcha_invalid_interaction'];
+        }
+
+        if (isset($clientData['challenge_elapsed'])) {
+            $clientElapsed = filter_var($clientData['challenge_elapsed'], FILTER_VALIDATE_INT);
+            if ($clientElapsed === false || $clientElapsed < 0 || $clientElapsed > ($this->ttl * 1000 + 5000)) {
+                return ['ok' => false, 'reason' => 'captcha_invalid_elapsed'];
             }
         }
 
